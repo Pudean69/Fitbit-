@@ -1,64 +1,42 @@
-# fitbit-accel-fetcher
-This is a Fitbit OS demo for transferring watch accelerometer data via companion to an external web server.
+# android-fitbit-fetcher
+android-fitbit-fetcher accepts accelerometer data sent from Fitbit companion to 127.0.0.1:3000, and saves it to an accessible file in the Android file system.
 
-Features
+This repo is (hopefully) an Android Studio Java project that builds to an Android native app. To avoid the need for a security certificate, it must be run on the same phone/tablet as that on which the Fitbit app runs.
+
+This works in conjunction with [fitbit-accel-fetcher](https://github.com/gondwanasoft/fitbit-accel-fetcher), but should work with any text data sent as a request body to 127.0.0.1:3000.
+
+Architecture
 -
-Data is stored on the watch and transmitted to the companion in binary. This improves storage capacity and data transfer rate by about a factor of four.
+Accelerometer data is collected in batches and stored on the watch. Multiple binary files are used to keep file sizes relatively small, which allows faster data transfer and facilitates retries if necessary.
 
-Data is saved and transferred using multiple small files, to provide greater feedback during transfers and to allow faster error recovery.
+The companion app (which runs within the Fitbit app on your phone) is responsible for converting binary files received from the watch back to text, and then forwarding them to the Android server (*ie*, this repository). The companion does not attempt to store files because the Fitbit OS API doesn't support that. The companion also does not attempt to retain any state information (*eg*, persisted variables) since it can be closed between receiving successive files.
 
-Failed transfers are automatically retried.
+The Android server (*ie*, this repository) receives files from the companion and stores them in private local storage. When all files have been received, it can merge them into one large file that represents the whole of the recorded session, and allows the user to save the combined file in public storage so they can access it.
 
-The companion converts the binary data into plain text in CSV format, so it can be read in a text editor or imported into a spreadsheet.
-
-The settings screen displays the companion's status.
-
-By default, this app uses [android-fitbit-fetcher](https://github.com/gondwanasoft/android-fitbit-fetcher) as the server that receives the data. However, you could adapt it to use any other suitable server available to you.
-
-The approach demonstrated in these repositories could be adapted to transfer other sensor data (such as heart rate).
-
-More information is available in the [server's readme](https://github.com/gondwanasoft/android-fitbit-fetcher/blob/master/README.md).
-
-Usage (assuming use of [android-fitbit-fetcher](https://github.com/gondwanasoft/android-fitbit-fetcher))
--
-Build and install this repo to your watch and companion device (*eg*, phone).
-
-Build and install the server on your companion device (*eg*, phone).
-
-Start the server app.
-
-Start the watch app ('Accel Fetcher').
-
-Record some accelerometer data on your watch.
-
-Transfer accelerometer data from watch to phone.
-
-Await transfer to finish (see watch app).
-
-Select `GET DATA` on server app, and select a file into which the data will be copied.
-
-Use a file manager on your phone to verify that the data has been received.
-
-Change Log
--
-Nov 2022:
-
-* Changed method of reconstructing filestamps from 16-bit values. The new method should be robust against files being received out of sequence, or being received more than once.
-* Caught errors that seem to correspond to incompletely received files on the server (which resulted in NULs). Such files are now resent.
-
-Caveats
+Communication Protocol
 -
 
-The companion component will sometimes be unloaded even while the device component is still running. Receiving a file should wake it, but sometimes it doesn't. If the watch doesn't progress after about a minute, close the app and restart it. This should restart the companion. If it doesn't, display the Fitbit mobile app on your phone and try again. You'll need to redisplay the server app after the companion starts. Connecting the companion device (phone) to power seems to reduce the likelihood of unwanted unloading.
+The watch initiates the process by sending a data file to the companion using the file-transfer API. For simplicity, filenames are simple integers starting with 1.
 
-Fitbit OS sometimes stops processsing file transfers from watch to companion. To fix this, close the app on the watch and restart it. Any previously-recorded data on the watch will still be there, so pressing `TRANSFER TO PHONE` should restart the process. (Previously-recorded files are only deleted when `START RECORDING` is pressed.)
+When the companion receives a data file from the watch, it converts it from binary to text and sends it to the server using the fetch API.
 
-Timestamp values will not increase at exactly the amount requested, for two reasons: the Fitbit API seems to round to the nearest 10 ms, and there can be a few ms variations due (presumably) to irregular sampling.
+The communication link between the watch and companion is assumed to be the bottleneck. It uses Bluetooth, and typically runs at about 1 kB/sec. Communications between the companion and the server should be much faster since the data is only transferred between apps on the same device (phone). This is why binary data is only used for the watch-to-companion leg; text data is used for the companion-to-server leg because it's simpler and allows the server to ignore the structure of the data.
 
-Very occasionally, you may see timestamps that jump ahead or behind by unexpected amounts. This seems to originate from the accelerometer batch readings themselves. Often, such errors seem to occur in pairs or groups, with the sum of the errors adding to about 0. Adding or subtracting a correction factor to the errant timestamps in the group should fix the problem. This needs to be done in whatever app is used to process the received data; it is not done in this app or the server.
+Enhancements and Customisations
+-
 
-This app is not intended to be used as is. Its purpose is to demonstrate some techniques that could be applied in other applications.
+ See the start of [MainActivity.java](https://github.com/gondwanasoft/android-fitbit-fetcher/blob/master/app/src/main/java/au/net/gondwanasoftware/fitbitfetcher/MainActivity.java).
 
-This has not been tested using any server other than [android-fitbit-fetcher](https://github.com/gondwanasoft/android-fitbit-fetcher).
+Limitations
+-
+This project is a minimal modification of a default Android Studio project. As such, it contains a lot of unnecessary code, resources, *etc*.
+
+The code is poorly structured.
+
+There is negligible attempt to provide security or flexibility.
+
+Binary (executable) builds are not provided, because google would not be able to assess it without a suitable Fitbit watch, security is inadequate, and the source code will need to be adapted to meet individual requirements.
+
+This project is not in active development or maintenance.
 
 No support is provided.
